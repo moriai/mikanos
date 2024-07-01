@@ -13,6 +13,7 @@
 #include "graphics.hpp"
 #include "font.hpp"
 #include "console.hpp"
+#include "version.hpp"
 // #@@range_end(includes)
 
 void* operator new(size_t size, void* buf) {
@@ -68,9 +69,7 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   // #@@range_end(new_console)
 
   // #@@range_begin(use_printk)
-  for (int i = 0; i < 27; ++i) {
-    printk("printk: %d\n", i);
-  }
+  printk("MikanOS version %s (%s)\n", MIKANOS_TAGNAME, MIKANOS_DATE);
   // #@@range_end(use_printk)
   while (1) __asm__("hlt");
 }

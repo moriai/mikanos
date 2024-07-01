@@ -13,7 +13,7 @@ all: $(TARGET)
 
 .PHONY: clean
 clean:
-	rm -rf *.o
+	rm -rf *.o version.hpp
 
 kernel.elf: $(OBJS) Makefile
 	ld.lld $(LDFLAGS) -o kernel.elf $(OBJS) -lc
@@ -39,6 +39,12 @@ hankaku.bin: hankaku.txt
 
 hankaku.o: hankaku.bin
 	objcopy -I binary -O elf64-x86-64 -B i386:x86-64 $< $@
+
+version.hpp:
+	echo '#define MIKANOS_TAGNAME "'`git describe --tags`'"' >$@
+	echo '#define MIKANOS_DATE "'`TZ=Japan date`'"' >>$@
+
+main.cpp: version.hpp
 
 .%.d: %.bin
 	touch $@
