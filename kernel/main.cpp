@@ -277,6 +277,12 @@ extern "C" void KernelMainNewStack(
   WriteString(*main_window->Writer(), {24, 44}, " MikanOS world!", {0, 0, 0});
   // #@@range_end(make_window)
 
+  auto sub_window = std::make_shared<Window>(
+      160, 68, frame_buffer_config.pixel_format);
+  DrawWindow(*sub_window->Writer(), "Sub Window");
+  WriteString(*sub_window->Writer(), {24, 28}, "This is", {0, 0, 0});
+  WriteString(*sub_window->Writer(), {24, 44}, " my window!", {0, 0, 0});
+
   FrameBuffer screen;
   if (auto err = screen.Initialize(frame_buffer_config)) {
     Log(kError, "failed to initialize frame buffer: %s at %s:%d\n",
@@ -299,10 +305,15 @@ extern "C" void KernelMainNewStack(
     .SetWindow(main_window)
     .Move({300, 100})
     .ID();
+  auto sub_window_layer_id = layer_manager->NewLayer()
+    .SetWindow(sub_window)
+    .Move({400, 140})
+    .ID();
 
   layer_manager->UpDown(bglayer_id, 0);
   layer_manager->UpDown(mouse_layer_id, 1);
-  layer_manager->UpDown(main_window_layer_id, 1);
+  layer_manager->UpDown(sub_window_layer_id, 1);
+  layer_manager->UpDown(main_window_layer_id, 2);
   layer_manager->Draw();
   // #@@range_end(register_window)
 
