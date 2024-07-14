@@ -34,5 +34,24 @@ int main(int argc, char** argv) {
     SyscallWinDrawLine(layer_id, x0, y0, x0 + x, y0 + y, Color(deg));
     SyscallWinDrawLine(layer_id, x1, y1, x1 + x, y1 - y, Color(deg + 90));
   }
+
+  AppEvent events[1];
+  while (true) {
+    auto [ n, err ] = SyscallReadEvent(events, 1);
+    if (err) {
+      printf("ReadEvent failed: %s\n", strerror(err));
+      break;
+    }
+    if (events[0].type == AppEvent::kQuit) {
+      break;
+    } else if (events[0].type == AppEvent::kMouseMove ||
+        events[0].type == AppEvent::kMouseButton ||
+        events[0].type == AppEvent::kKeyPush) {
+      // ignore
+    } else {
+      printf("unknown event: type = %d\n", events[0].type);
+    }
+  }
+  SyscallCloseWindow(layer_id);
   return 0;
 }
