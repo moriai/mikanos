@@ -20,5 +20,4 @@ class TimerManager {
 extern TimerManager* timer_manager;
 // #@@range_end(timermgr)
 
-__attribute__((no_caller_saved_registers))
 void LAPICTimerOnInterrupt();
