@@ -28,4 +28,5 @@ void SetLogLevel(LogLevel level);
  * @param level  ログの優先度．しきい値以上の優先度のログのみが記録される．
  * @param format  書式文字列．printk と互換．
  */
+__attribute__((no_caller_saved_registers))
 int Log(LogLevel level, const char* format, ...);

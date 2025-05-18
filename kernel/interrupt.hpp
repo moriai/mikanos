@@ -87,4 +87,5 @@ struct InterruptFrame {
 };
 // #@@range_end(frame_struct)
 
+__attribute__((no_caller_saved_registers))
 void NotifyEndOfInterrupt();
