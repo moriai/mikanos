@@ -63,6 +63,5 @@ namespace usb::xhci {
    *
    * @return イベントを正常に処理できたら Error::kSuccess
    */
-  __attribute__((no_caller_saved_registers))
   Error ProcessEvent(Controller& xhc);
 }
