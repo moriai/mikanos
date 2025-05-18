@@ -44,6 +44,8 @@ kernel.elf: $(OBJS) Makefile
 %.o: %.asm Makefile
 	nasm -f elf64 -o $@ $<
 
+interrupt.o: CXXFLAGS += -Wno-interrupt-service-routine
+
 hankaku.bin: hankaku.txt
 	../tools/makefont.py -o $@ $<
 
