@@ -73,4 +73,4 @@ struct InterruptFrame {
 __attribute__((no_caller_saved_registers))
 void NotifyEndOfInterrupt();
 
-void InitializeInterrupt(std::deque<Message>* msg_queue);
+void InitializeInterrupt();
