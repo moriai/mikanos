@@ -8,12 +8,14 @@
 #include "asmfunc.h"
 #include "elf.hpp"
 
-// #@@range_begin(make_argv)
 namespace {
 
 std::vector<char*> MakeArgVector(char* command, char* first_arg) {
   std::vector<char*> argv;
   argv.push_back(command);
+  if (!first_arg) {
+    return argv;
+  }
 
   char* p = first_arg;
   while (true) {
@@ -39,7 +41,6 @@ std::vector<char*> MakeArgVector(char* command, char* first_arg) {
 }
 
 } // namespace
-// #@@range_end(make_argv)
 
 Terminal::Terminal() {
   window_ = std::make_shared<ToplevelWindow>(
@@ -215,7 +216,6 @@ void Terminal::ExecuteLine() {
       DrawCursor(true);
     }
   } else if (command[0] != 0) {
-    // #@@range_begin(pass_arg)
     auto file_entry = fat::FindFile(command);
     if (!file_entry) {
       Print("no such command: ");
@@ -224,7 +224,6 @@ void Terminal::ExecuteLine() {
     } else {
       ExecuteFile(*file_entry, command, first_arg);
     }
-    // #@@range_end(pass_arg)
   }
 }
 
@@ -245,7 +244,6 @@ void Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command,
     cluster = fat::NextCluster(cluster);
   }
 
-  // #@@range_begin(call_main)
   auto elf_header = reinterpret_cast<Elf64_Ehdr*>(&file_buf[0]);
   if (memcmp(elf_header->e_ident, "\x7f" "ELF", 4) != 0) {
     using Func = void ();
@@ -265,7 +263,6 @@ void Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command,
   char s[64];
   sprintf(s, "app exited. ret = %d\n", ret);
   Print(s);
-  // #@@range_end(call_main)
 }
 
 void Terminal::Print(char c) {
