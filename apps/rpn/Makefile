@@ -14,3 +14,7 @@ rpn: rpn.o Makefile
 
 %.o: %.cpp Makefile
 	clang++ $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+.PHONY: clean distclean
+clean distclean:
+	-rm -f $(TARGET) *.o
