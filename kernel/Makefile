@@ -21,7 +21,11 @@ all: $(TARGET)
 
 .PHONY: clean
 clean:
-	rm -f $$(find . -name '*.[do]' -print)
+	rm -f $$(find . -name '*.o' -print)
+
+.PHONY: distclean
+distclean: clean
+	rm -f $(TARGET) $$(find . -name '*.d' -print)
 
 kernel.elf: $(OBJS) Makefile
 	ld.lld $(LDFLAGS) -o kernel.elf $(OBJS) -lc -lc++ -lc++abi
