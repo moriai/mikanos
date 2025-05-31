@@ -14,3 +14,7 @@ $(TARGET): $(TARGET).o Makefile
 
 %.o: %.cpp Makefile
 	clang++ $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+.PHONY: clean distclean
+clean distclean:
+	-rm -f $(TARGET) $(TARGET).o
