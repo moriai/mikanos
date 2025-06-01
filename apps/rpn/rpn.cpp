@@ -4,8 +4,8 @@
 #include "../../kernel/graphics.hpp"
 
 auto& printk = *reinterpret_cast<int (*)(const char*, ...)>(0x000000000010b000);
-auto& fill_rect = *reinterpret_cast<decltype(FillRectangle)*>(0x000000000010c1c0);
-auto& scrn_writer = *reinterpret_cast<decltype(screen_writer)*>(0x000000000024d078);
+auto& fill_rect = *reinterpret_cast<decltype(FillRectangle)*>(0x000000000010c170);
+auto& scrn_writer = *reinterpret_cast<decltype(screen_writer)*>(0x000000000024b068);
 // #@@range_end(kernelfunc_decl)
 
 int stack_ptr;
