@@ -18,4 +18,4 @@ $(TARGET): $(OBJS) Makefile
 
 .PHONY: clean distclean
 clean distclean:
-	-rm -f $(TARGET) $(TARGET).o
+	-rm -f $(TARGET) $(OBJS)
