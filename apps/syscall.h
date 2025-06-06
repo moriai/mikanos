@@ -9,11 +9,10 @@ struct SyscallResult {
   int error;
 };
 
-// #@@range_begin(open_window_decl)
 SyscallResult SyscallLogString(LogLevel level, const char* message);
 SyscallResult SyscallPutString(int fd, const char* s, size_t len);
 void SyscallExit(int exit_code);
 SyscallResult SyscallOpenWindow(int w, int h, int x, int y, const char* title);
-// #@@range_end(open_window_decl)
+SyscallResult SyscallWinWriteString(unsigned int layer_id, int x, int y, uint32_t color, const char* s);
 
 } // extern "C"
