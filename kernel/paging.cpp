@@ -116,6 +116,34 @@ Error CleanPageMap(
   return MAKE_ERROR(Error::kSuccess);
 }
 
+// #@@range_begin(find_filemapping)
+const FileMapping* FindFileMapping(const std::vector<FileMapping>& fmaps,
+                                   uint64_t causal_vaddr) {
+  for (const FileMapping& m : fmaps) {
+    if (m.vaddr_begin <= causal_vaddr && causal_vaddr < m.vaddr_end) {
+      return &m;
+    }
+  }
+  return nullptr;
+}
+// #@@range_end(find_filemapping)
+
+// #@@range_begin(prepare_pagecache)
+Error PreparePageCache(FileDescriptor& fd, const FileMapping& m,
+                       uint64_t causal_vaddr) {
+  LinearAddress4Level page_vaddr{causal_vaddr};
+  page_vaddr.parts.offset = 0;
+  if (auto err = SetupPageMaps(page_vaddr, 1)) {
+    return err;
+  }
+
+  const long file_offset = page_vaddr.value - m.vaddr_begin;
+  void* page_cache = reinterpret_cast<void*>(page_vaddr.value);
+  fd.Load(page_cache, 4096, file_offset);
+  return MAKE_ERROR(Error::kSuccess);
+}
+// #@@range_end(prepare_pagecache)
+
 } // namespace
 
 WithError<PageMapEntry*> NewPageMap() {
@@ -139,12 +167,10 @@ Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages) {
   return SetupPageMap(pml4_table, 4, addr, num_4kpages).error;
 }
 
-// #@@range_begin(clean_page_maps)
 Error CleanPageMaps(LinearAddress4Level addr) {
   auto pml4_table = reinterpret_cast<PageMapEntry*>(GetCR3());
   return CleanPageMap(pml4_table, 4, addr);
 }
-// #@@range_end(clean_page_maps)
 
 // #@@range_begin(handle_pf)
 Error HandlePageFault(uint64_t error_code, uint64_t causal_addr) {
@@ -152,9 +178,12 @@ Error HandlePageFault(uint64_t error_code, uint64_t causal_addr) {
   if (error_code & 1) { // P=1 かつページレベルの権限違反により例外が起きた
     return MAKE_ERROR(Error::kAlreadyAllocated);
   }
-  if (causal_addr < task.DPagingBegin() || task.DPagingEnd() <= causal_addr) {
-    return MAKE_ERROR(Error::kIndexOutOfRange);
+  if (task.DPagingBegin() <= causal_addr && causal_addr < task.DPagingEnd()) {
+    return SetupPageMaps(LinearAddress4Level{causal_addr}, 1);
   }
-  return SetupPageMaps(LinearAddress4Level{causal_addr}, 1);
+  if (auto m = FindFileMapping(task.FileMaps(), causal_addr)) {
+    return PreparePageCache(*task.Files()[m->fd], *m, causal_addr);
+  }
+  return MAKE_ERROR(Error::kIndexOutOfRange);
 }
 // #@@range_end(handle_pf)
