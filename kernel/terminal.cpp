@@ -83,7 +83,6 @@ uintptr_t GetFirstLoadAddress(Elf64_Ehdr* ehdr) {
 
 static_assert(kBytesPerFrame >= 4096);
 
-// #@@range_begin(copy_load_segments)
 WithError<uint64_t> CopyLoadSegments(Elf64_Ehdr* ehdr) {
   auto phdr = GetProgramHeader(ehdr);
   uint64_t last_addr = 0;
@@ -107,7 +106,6 @@ WithError<uint64_t> CopyLoadSegments(Elf64_Ehdr* ehdr) {
   }
   return { last_addr, MAKE_ERROR(Error::kSuccess) };
 }
-// #@@range_end(copy_load_segments)
 
 WithError<uint64_t> LoadELF(Elf64_Ehdr* ehdr) {
   if (ehdr->e_type != ET_EXEC) {
@@ -171,7 +169,6 @@ void ListAllEntries(Terminal* term, uint32_t dir_cluster) {
   }
 }
 
-// #@@range_begin(load_app)
 WithError<AppLoadInfo> LoadApp(fat::DirectoryEntry& file_entry, Task& task) {
   PageMapEntry* temp_pml4;
   if (auto [ pml4, err ] = SetupPML4(task); err) {
@@ -211,13 +208,10 @@ WithError<AppLoadInfo> LoadApp(fat::DirectoryEntry& file_entry, Task& task) {
   auto err = CopyPageMaps(app_load.pml4, temp_pml4, 4, 256);
   return { app_load, err };
 }
-// #@@range_end(load_app)
 
 } // namespace
 
-// #@@range_begin(app_loads_map)
 std::map<fat::DirectoryEntry*, AppLoadInfo>* app_loads;
-// #@@range_end(app_loads_map)
 
 Terminal::Terminal(uint64_t task_id, bool show_window)
     : task_id_{task_id}, show_window_{show_window} {
@@ -389,24 +383,27 @@ void Terminal::ExecuteLine() {
       fat::FormatName(*file_entry, name);
       Print(name);
       Print(" is not a directory\n");
+    // #@@range_begin(cat_print)
     } else {
-      auto cluster = file_entry->FirstCluster();
-      auto remain_bytes = file_entry->file_size;
+      fat::FileDescriptor fd{*file_entry};
+      char u8buf[4];
 
       DrawCursor(false);
-      while (cluster != 0 && cluster != fat::kEndOfClusterchain) {
-        char* p = fat::GetSectorByCluster<char>(cluster);
-
-        int i = 0;
-        for (; i < fat::bytes_per_cluster && i < remain_bytes; ++i) {
-          Print(*p);
-          ++p;
+      while (true) {
+        if (fd.Read(&u8buf[0], 1) != 1) {
+          break;
         }
-        remain_bytes -= i;
-        cluster = fat::NextCluster(cluster);
+        const int u8_remain = CountUTF8Size(u8buf[0]) - 1;
+        if (u8_remain > 0 && fd.Read(&u8buf[1], u8_remain) != u8_remain) {
+          break;
+        }
+
+        const auto [ u32, u8_next ] = ConvertUTF8To32(u8buf);
+        Print(u32 ? u32 : U'□');
       }
       DrawCursor(true);
     }
+    // #@@range_end(cat_print)
   } else if (strcmp(command, "noterm") == 0) {
     task_manager->NewTask()
       .InitContext(TaskTerminal, reinterpret_cast<int64_t>(first_arg))
@@ -442,7 +439,6 @@ void Terminal::ExecuteLine() {
   }
 }
 
-// #@@range_begin(execute_file)
 Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry, char* command, char* first_arg) {
   __asm__("cli");
   auto& task = task_manager->CurrentTask();
@@ -454,7 +450,6 @@ Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry, char* command, char
   }
 
   LinearAddress4Level args_frame_addr{0xffff'ffff'ffff'f000};
-// #@@range_end(execute_file)
   if (auto err = SetupPageMaps(args_frame_addr, 1)) {
     return err;
   }
@@ -501,7 +496,12 @@ Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry, char* command, char
   return FreePML4(task);
 }
 
-void Terminal::Print(char c) {
+// #@@range_begin(print_char)
+void Terminal::Print(char32_t c) {
+  if (!show_window_) {
+    return;
+  }
+
   auto newline = [this]() {
     cursor_.x = 0;
     if (cursor_.y < kRows - 1) {
@@ -511,37 +511,40 @@ void Terminal::Print(char c) {
     }
   };
 
-  if (c == '\n') {
+  if (c == U'\n') {
     newline();
-  } else {
-    if (show_window_) {
-      WriteAscii(*window_->Writer(), CalcCursorPos(), c, {255, 255, 255});
-    }
-    if (cursor_.x == kColumns - 1) {
+  } else if (IsHankaku(c)) {
+    if (cursor_.x == kColumns) {
       newline();
-    } else {
-      ++cursor_.x;
     }
+    WriteUnicode(*window_->Writer(), CalcCursorPos(), c, {255, 255, 255});
+    ++cursor_.x;
+  } else {
+    if (cursor_.x >= kColumns - 1) {
+      newline();
+    }
+    WriteUnicode(*window_->Writer(), CalcCursorPos(), c, {255, 255, 255});
+    cursor_.x += 2;
   }
 }
+// #@@range_end(print_char)
 
+// #@@range_begin(print_str)
 void Terminal::Print(const char* s, std::optional<size_t> len) {
   const auto cursor_before = CalcCursorPos();
   DrawCursor(false);
 
-  if (len) {
-    for (size_t i = 0; i < *len; ++i) {
-      Print(*s);
-      ++s;
-    }
-  } else {
-    while (*s) {
-      Print(*s);
-      ++s;
-    }
+  size_t i = 0;
+  const size_t len_ = len ? *len : std::numeric_limits<size_t>::max();
+
+  while (s[i] && i < len_) {
+    const auto [ u32, bytes ] = ConvertUTF8To32(&s[i]);
+    Print(u32);
+    i += bytes;
   }
 
   DrawCursor(true);
+// #@@range_end(print_str)
   const auto cursor_after = CalcCursorPos();
 
   Vector2D<int> draw_pos{ToplevelWindow::kTopLeftMargin.x, cursor_before.y};
