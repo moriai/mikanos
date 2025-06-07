@@ -143,7 +143,6 @@ Error FreePML4(Task& current_task) {
   return FreePageMap(reinterpret_cast<PageMapEntry*>(cr3));
 }
 
-// #@@range_begin(list_all_entries)
 void ListAllEntries(FileDescriptor& fd, uint32_t dir_cluster) {
   const auto kEntriesPerCluster =
     fat::bytes_per_cluster / sizeof(fat::DirectoryEntry);
@@ -168,7 +167,6 @@ void ListAllEntries(FileDescriptor& fd, uint32_t dir_cluster) {
     dir_cluster = fat::NextCluster(dir_cluster);
   }
 }
-// #@@range_end(list_all_entries)
 
 WithError<AppLoadInfo> LoadApp(fat::DirectoryEntry& file_entry, Task& task) {
   PageMapEntry* temp_pml4;
@@ -214,14 +212,12 @@ WithError<AppLoadInfo> LoadApp(fat::DirectoryEntry& file_entry, Task& task) {
 
 std::map<fat::DirectoryEntry*, AppLoadInfo>* app_loads;
 
-// #@@range_begin(term_ctor)
 Terminal::Terminal(Task& task, bool show_window)
     : task_{task}, show_window_{show_window} {
   for (int i = 0; i < files_.size(); ++i) {
     files_[i] = std::make_shared<TerminalFileDescriptor>(*this);
   }
   if (show_window) {
-// #@@range_end(term_ctor)
     window_ = std::make_shared<ToplevelWindow>(
         kColumns * 8 + 8 + ToplevelWindow::kMarginX,
         kRows * 16 + 8 + ToplevelWindow::kMarginY,
@@ -325,7 +321,6 @@ void Terminal::Scroll1() {
                 {4, 4 + 16*cursor_.y}, {8*kColumns, 16}, {0, 0, 0});
 }
 
-// #@@range_begin(execute_line)
 void Terminal::ExecuteLine() {
   char* command = &linebuf_[0];
   char* first_arg = strchr(&linebuf_[0], ' ');
@@ -335,7 +330,10 @@ void Terminal::ExecuteLine() {
     ++first_arg;
   }
 
+  // #@@range_begin(exit_code_var)
   auto original_stdout = files_[1];
+  int exit_code = 0;
+  // #@@range_end(exit_code_var)
 
   if (redir_char) {
     *redir_char = 0;
@@ -360,15 +358,18 @@ void Terminal::ExecuteLine() {
     files_[1] = std::make_shared<fat::FileDescriptor>(*file);
   }
 
-// #@@range_begin(echo_command)
+  // #@@range_begin(echo_command)
   if (strcmp(command, "echo") == 0) {
-// #@@range_end(execute_line)
-    if (first_arg) {
+    if (first_arg && first_arg[0] == '$') {
+      if (strcmp(&first_arg[1], "?") == 0) {
+        PrintToFD(*files_[1], "%d", last_exit_code_);
+      }
+    } else if (first_arg) {
       PrintToFD(*files_[1], "%s", first_arg);
     }
     PrintToFD(*files_[1], "\n");
   } else if (strcmp(command, "clear") == 0) {
-// #@@range_end(echo_command)
+  // #@@range_end(echo_command)
     if (show_window_) {
       FillRectangle(*window_->InnerWriter(),
                     {4, 4}, {8*kColumns, 16*kRows}, {0, 0, 0});
@@ -390,6 +391,7 @@ void Terminal::ExecuteLine() {
       auto [ dir, post_slash ] = fat::FindFile(first_arg);
       if (dir == nullptr) {
         PrintToFD(*files_[2], "No such file or directory: %s\n", first_arg);
+        exit_code = 1;
       } else if (dir->attr == fat::Attribute::kDirectory) {
         ListAllEntries(*files_[1], dir->FirstCluster());
       } else {
@@ -397,21 +399,25 @@ void Terminal::ExecuteLine() {
         fat::FormatName(*dir, name);
         if (post_slash) {
           PrintToFD(*files_[2], "%s is not a directory\n", name);
+          exit_code = 1;
         } else {
           PrintToFD(*files_[1], "%s\n", name);
         }
       }
     }
-// #@@range_begin(cat_command)
+  // #@@range_begin(cat_command)
   } else if (strcmp(command, "cat") == 0) {
     auto [ file_entry, post_slash ] = fat::FindFile(first_arg);
     if (!file_entry) {
       PrintToFD(*files_[2], "no such file: %s\n", first_arg);
+      exit_code = 1;
     } else if (file_entry->attr != fat::Attribute::kDirectory && post_slash) {
       char name[13];
       fat::FormatName(*file_entry, name);
       PrintToFD(*files_[2], "%s is not a directory\n", name);
+      exit_code = 1;
     } else {
+  // #@@range_end(cat_command)
       fat::FileDescriptor fd{*file_entry};
       char u8buf[5];
 
@@ -431,7 +437,6 @@ void Terminal::ExecuteLine() {
       DrawCursor(true);
     }
   } else if (strcmp(command, "noterm") == 0) {
-// #@@range_end(cat_command)
     task_manager->NewTask()
       .InitContext(TaskTerminal, reinterpret_cast<int64_t>(first_arg))
       .Wakeup();
@@ -447,34 +452,47 @@ void Terminal::ExecuteLine() {
     auto [ file_entry, post_slash ] = fat::FindFile(command);
     if (!file_entry) {
       PrintToFD(*files_[2], "no such command: %s\n", command);
+      exit_code = 1;
     } else if (file_entry->attr != fat::Attribute::kDirectory && post_slash) {
       char name[13];
       fat::FormatName(*file_entry, name);
       PrintToFD(*files_[2], "%s is not a directory\n", name);
-    } else if (auto err = ExecuteFile(*file_entry, command, first_arg)) {
-      PrintToFD(*files_[2], "failed to exec file: %s\n", err.Name());
+      exit_code = 1;
+    } else {
+      // #@@range_begin(call_exec_file)
+      auto [ ec, err ] = ExecuteFile(*file_entry, command, first_arg);
+      if (err) {
+        PrintToFD(*files_[2], "failed to exec file: %s\n", err.Name());
+        exit_code = -ec;
+      } else {
+        exit_code = ec;
+      }
+      // #@@range_end(call_exec_file)
     }
   }
 
-// #@@range_begin(execute_line_finish)
+// #@@range_begin(exec_line_finish)
+  last_exit_code_ = exit_code;
   files_[1] = original_stdout;
 }
-// #@@range_end(execute_line_finish)
+// #@@range_end(exec_line_finish)
 
-Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry,
-                            char* command, char* first_arg) {
+// #@@range_begin(exec_file)
+WithError<int> Terminal::ExecuteFile(fat::DirectoryEntry& file_entry,
+                                     char* command, char* first_arg) {
   __asm__("cli");
   auto& task = task_manager->CurrentTask();
   __asm__("sti");
 
   auto [ app_load, err ] = LoadApp(file_entry, task);
   if (err) {
-    return err;
+    return { 0, err };
   }
+// #@@range_end(exec_file)
 
   LinearAddress4Level args_frame_addr{0xffff'ffff'ffff'f000};
   if (auto err = SetupPageMaps(args_frame_addr, 1)) {
-    return err;
+    return { 0, err };
   }
   auto argv = reinterpret_cast<char**>(args_frame_addr.value);
   int argv_len = 32; // argv = 8x32 = 256 bytes
@@ -482,20 +500,18 @@ Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry,
   int argbuf_len = 4096 - sizeof(char**) * argv_len;
   auto argc = MakeArgVector(command, first_arg, argv, argv_len, argbuf, argbuf_len);
   if (argc.error) {
-    return argc.error;
+    return { 0, argc.error };
   }
 
   const int stack_size = 8 * 4096;
   LinearAddress4Level stack_frame_addr{0xffff'ffff'ffff'f000 - stack_size};
   if (auto err = SetupPageMaps(stack_frame_addr, stack_size / 4096)) {
-    return err;
+    return { 0, err };
   }
 
-  // #@@range_begin(setup_app_files)
   for (int i = 0; i < files_.size(); ++i) {
     task.Files().push_back(files_[i]);
   }
-  // #@@range_end(setup_app_files)
 
   const uint64_t elf_next_page =
     (app_load.vaddr_end + 4095) & 0xffff'ffff'ffff'f000;
@@ -504,6 +520,7 @@ Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry,
 
   task.SetFileMapEnd(stack_frame_addr.value);
 
+// #@@range_begin(exec_file_finish)
   int ret = CallApp(argc.value, argv, 3 << 3 | 3, app_load.entry,
                     stack_frame_addr.value + stack_size - 8,
                     &task.OSStackPointer());
@@ -511,15 +528,12 @@ Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry,
   task.Files().clear();
   task.FileMaps().clear();
 
-  char s[64];
-  sprintf(s, "app exited. ret = %d\n", ret);
-  Print(s);
-
   if (auto err = CleanPageMaps(LinearAddress4Level{0xffff'8000'0000'0000})) {
-    return err;
+    return { ret, err };
   }
-  return FreePML4(task);
+  return { ret, FreePML4(task) };
 }
+// #@@range_end(exec_file_finish)
 
 void Terminal::Print(char32_t c) {
   if (!show_window_) {
