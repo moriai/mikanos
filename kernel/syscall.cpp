@@ -40,6 +40,7 @@ SYSCALL(LogString) {
   return { len, 0 };
 }
 
+// #@@range_begin(put_string)
 SYSCALL(PutString) {
   const auto fd = arg1;
   const char* s = reinterpret_cast<const char*>(arg2);
@@ -48,13 +49,16 @@ SYSCALL(PutString) {
     return { 0, E2BIG };
   }
 
-  if (fd == 1) {
-    const auto task_id = task_manager->CurrentTask().ID();
-    (*terminals)[task_id]->Print(s, len);
-    return { len, 0 };
+  __asm__("cli");
+  auto& task = task_manager->CurrentTask();
+  __asm__("sti");
+
+  if (fd < 0 || task.Files().size() <= fd || !task.Files()[fd]) {
+    return { 0, EBADF };
   }
-  return { 0, EBADF };
+  return { task.Files()[fd]->Write(s, len), 0 };
 }
+// #@@range_end(put_string)
 
 SYSCALL(Exit) {
   __asm__("cli");
@@ -314,7 +318,6 @@ namespace {
     return num_files;
   }
 
-  // #@@range_begin(create_file)
   std::pair<fat::DirectoryEntry*, int> CreateFile(const char* path) {
     auto [ file, err ] = fat::CreateFile(path);
     switch (err.Cause()) {
@@ -324,7 +327,6 @@ namespace {
     default: return { file, 0 };
     }
   }
-  // #@@range_end(create_file)
 } // namespace
 
 SYSCALL(OpenFile) {
@@ -334,7 +336,6 @@ SYSCALL(OpenFile) {
   auto& task = task_manager->CurrentTask();
   __asm__("sti");
 
-  // #@@range_begin(open_file)
   if (strcmp(path, "@stdin") == 0) {
     return { 0, 0 };
   }
@@ -356,7 +357,6 @@ SYSCALL(OpenFile) {
   size_t fd = AllocateFD(task);
   task.Files()[fd] = std::make_unique<fat::FileDescriptor>(*file);
   return { fd, 0 };
-  // #@@range_end(open_file)
 }
 
 SYSCALL(ReadFile) {

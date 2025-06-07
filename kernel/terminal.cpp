@@ -528,8 +528,12 @@ Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command
     return err;
   }
 
-  task.Files().push_back(
-      std::make_unique<TerminalFileDescriptor>(task, *this));
+  // #@@range_begin(register_stdfds)
+  for (int i = 0; i < 3; ++i) {
+    task.Files().push_back(
+        std::make_unique<TerminalFileDescriptor>(task, *this));
+  }
+  // #@@range_end(register_stdfds)
 
   auto entry_addr = elf_header->e_entry;
   int ret = CallApp(argc.value, argv, 3 << 3 | 3, entry_addr,
@@ -631,8 +635,6 @@ Rectangle<int> Terminal::HistoryUpDown(int direction) {
   return draw_area;
 }
 
-std::map<uint64_t, Terminal*>* terminals;
-
 void TaskTerminal(uint64_t task_id, int64_t data) {
   const char* command_line = reinterpret_cast<char*>(data);
   const bool show_window = command_line == nullptr;
@@ -645,7 +647,6 @@ void TaskTerminal(uint64_t task_id, int64_t data) {
     layer_task_map->insert(std::make_pair(terminal->LayerID(), task_id));
     active_layer->Activate(terminal->LayerID());
   }
-  (*terminals)[task_id] = terminal;
   __asm__("sti");
 
   if (command_line) {
@@ -742,3 +743,10 @@ size_t TerminalFileDescriptor::Read(void* buf, size_t len) {
     return 1;
   }
 }
+
+// #@@range_begin(term_fd_write)
+size_t TerminalFileDescriptor::Write(const void* buf, size_t len) {
+  term_.Print(reinterpret_cast<const char*>(buf), len);
+  return len;
+}
+// #@@range_end(term_fd_write)
