@@ -18,18 +18,18 @@ LDFLAGS  += --entry KernelMain -z norelro --image-base 0x100000 --static
 
 .PHONY: all
 all: $(TARGET)
+	@echo >/dev/null
 
 .PHONY: clean
 clean:
-	rm -f $$(find . -name '*.o' -print)
+	rm -f $(TARGET) $$(find . -name '*.o' -print)
 
 .PHONY: distclean
 distclean: clean
-	rm -f $(TARGET) $$(find . -name '*.d' -print)
+	rm -f $$(find . -name '*.d' -print)
 
 kernel.elf: $(OBJS) Makefile
-	ld.lld $(LDFLAGS) -o kernel.elf $(OBJS) -lc -lc++ -lc++abi -lm \
-	-lfreetype
+	ld.lld $(LDFLAGS) -o kernel.elf $(OBJS) -lc -lc++ -lc++abi -lm -lfreetype
 
 %.o: %.cpp Makefile
 	clang++ $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
