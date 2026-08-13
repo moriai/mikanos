@@ -23,7 +23,6 @@ FORCE: ;
 disk.img: $(TARGETS)
 	APPS_DIR=./apps RESOURCE_DIR=./resource DISK_IMG=./disk.img MIKANOS_DIR=$$PWD \
 	$$HOME/osbook/devenv/make_mikanos_image.sh
-	rmdir mnt
 
 image: disk.img
 
