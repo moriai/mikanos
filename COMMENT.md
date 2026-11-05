@@ -23,3 +23,9 @@
     + [i番目のポートに何か接続されていたら、ポートの設定を行う](kernel/main.cpp#L182-L192)
 
 ### [xHC に溜まっているイベントを処理する](kernel/main.cpp#L196-L202)
+
+### [マウスからのイベントを処理する](kernel/main.cpp#L50-L56)
++ MouseCursor クラスのインスタンスの MoveRelative() メソッドを呼び出す
+
+### [MouseCursor クラス](kernel/mouse.hpp#L10-L23)
++ [MouseCursor クラスの本体](kernel/mouse.cpp#L60-L73)
